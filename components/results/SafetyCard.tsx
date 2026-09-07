@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { RiskLevel } from '@/lib/ai/types';
 import { Volume2, VolumeX, Share2, Copy, Check } from 'lucide-react';
 
@@ -18,6 +18,7 @@ export function SafetyCard({
   riskLevel,
 }: SafetyCardProps) {
   const [speaking, setSpeaking] = useState(false);
+  const [playingTrack, setPlayingTrack] = useState<'en' | 'hi' | null>(null);
   const [copied, setCopied] = useState(false);
 
   const advisoryClass =
@@ -27,26 +28,95 @@ export function SafetyCard({
       ? 'advisory advisory-warn'
       : 'advisory';
 
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
-  const cancelledRef = React.useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const cancelledRef = useRef(false);
 
   const stopPlayback = () => {
     cancelledRef.current = true;
     if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
       audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+      audioRef.current.src = '';
       audioRef.current = null;
     }
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
     setSpeaking(false);
+    setPlayingTrack(null);
   };
 
-  const playAudioTrack = (text: string, lang: 'en' | 'hi', onFinish: () => void) => {
+  // Clean up audio when component unmounts
+  useEffect(() => {
+    return () => {
+      stopPlayback();
+    };
+  }, []);
+
+  const fallbackSpeechSynthesis = (
+    text: string,
+    lang: 'en' | 'hi',
+    onFinish: () => void
+  ) => {
     if (cancelledRef.current || !text) {
       onFinish();
       return;
+    }
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      onFinish();
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = lang === 'hi' ? 'hi-IN' : 'en-US';
+      utterance.rate = 0.95;
+
+      utterance.onend = () => {
+        if (!cancelledRef.current) onFinish();
+      };
+      utterance.onerror = () => {
+        if (!cancelledRef.current) onFinish();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      onFinish();
+    }
+  };
+
+  const playAudioTrack = (
+    text: string,
+    lang: 'en' | 'hi',
+    onFinish: () => void
+  ) => {
+    if (cancelledRef.current || !text) {
+      onFinish();
+      return;
+    }
+
+    setPlayingTrack(lang);
+
+    // Guard against multiple callback invocations (e.g. onerror + playPromise rejection)
+    let isHandled = false;
+    const finishOnce = () => {
+      if (isHandled) return;
+      isHandled = true;
+      if (!cancelledRef.current) {
+        onFinish();
+      }
+    };
+
+    // Clean up any previously playing audio before starting new track
+    if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current.pause();
+      audioRef.current.src = '';
+      audioRef.current = null;
     }
 
     try {
@@ -55,31 +125,33 @@ export function SafetyCard({
       audioRef.current = audio;
 
       audio.onended = () => {
-        if (!cancelledRef.current) {
-          onFinish();
-        }
+        finishOnce();
       };
 
       audio.onerror = () => {
-        if (!cancelledRef.current) {
-          onFinish();
-        }
+        console.warn(`[TTS] ${lang} audio stream failed, attempting local speech fallback...`);
+        fallbackSpeechSynthesis(text, lang, finishOnce);
       };
 
       const playPromise = audio.play();
       if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          if (!cancelledRef.current) {
-            onFinish();
-          }
+        playPromise.catch((err) => {
+          console.warn(`[TTS] ${lang} playback rejected, attempting local speech fallback:`, err);
+          fallbackSpeechSynthesis(text, lang, finishOnce);
         });
       }
-    } catch {
-      onFinish();
+    } catch (err) {
+      console.warn(`[TTS] ${lang} audio error:`, err);
+      fallbackSpeechSynthesis(text, lang, finishOnce);
     }
   };
 
-  const handleSpeak = () => {
+  // Combine recommendedAction seamlessly with the warning for maximum urgency/clarity
+  const cleanEnglish = englishWarning.startsWith(recommendedAction)
+    ? englishWarning
+    : `${recommendedAction ? recommendedAction + ' ' : ''}${englishWarning}`;
+
+  const handleSpeak = (target?: 'all' | 'en' | 'hi') => {
     if (speaking) {
       stopPlayback();
       return;
@@ -93,12 +165,25 @@ export function SafetyCard({
     cancelledRef.current = false;
     setSpeaking(true);
 
-    // Sequential bilingual readout: First English -> Then Hindi
+    if (target === 'en' && enText) {
+      playAudioTrack(enText, 'en', () => {
+        stopPlayback();
+      });
+      return;
+    }
+
+    if (target === 'hi' && hiText) {
+      playAudioTrack(hiText, 'hi', () => {
+        stopPlayback();
+      });
+      return;
+    }
+
+    // Default: Sequential bilingual readout: First English -> Then Hindi
     if (enText) {
       playAudioTrack(enText, 'en', () => {
         if (cancelledRef.current) return;
         if (hiText) {
-          // Play Hindi warning right after English completes
           playAudioTrack(hiText, 'hi', () => {
             stopPlayback();
           });
@@ -130,11 +215,6 @@ export function SafetyCard({
     }
   };
 
-  // Combine recommendedAction seamlessly with the warning for maximum urgency/clarity
-  const cleanEnglish = englishWarning.startsWith(recommendedAction)
-    ? englishWarning
-    : `${recommendedAction ? recommendedAction + ' ' : ''}${englishWarning}`;
-
   return (
     <section className="space-y-3">
       <h3 className="text-[15px] font-semibold text-[var(--ink)] m-0">
@@ -142,22 +222,59 @@ export function SafetyCard({
       </h3>
 
       <div className={advisoryClass}>
-        <div className="line">
-          {cleanEnglish}
+        <div className="line flex items-start justify-between gap-3">
+          <div className="flex-1">{cleanEnglish}</div>
+          <button
+            type="button"
+            onClick={() =>
+              speaking && playingTrack === 'en' ? stopPlayback() : handleSpeak('en')
+            }
+            className="shrink-0 p-1 rounded hover:bg-black/5 text-[var(--ink-faint)] hover:text-[var(--ink)] transition-colors cursor-pointer border-0 bg-transparent"
+            title={speaking && playingTrack === 'en' ? 'Stop English audio' : 'Listen in English'}
+            aria-label="Listen in English"
+          >
+            {speaking && playingTrack === 'en' ? (
+              <VolumeX className="w-4 h-4 text-[var(--stamp)] animate-pulse" />
+            ) : (
+              <Volume2 className="w-4 h-4" />
+            )}
+          </button>
         </div>
 
         {hindiWarning && (
-          <div className="line hindi devanagari">
-            {hindiWarning}
+          <div className="line hindi devanagari flex items-start justify-between gap-3">
+            <div className="flex-1">{hindiWarning}</div>
+            <button
+              type="button"
+              onClick={() =>
+                speaking && playingTrack === 'hi' ? stopPlayback() : handleSpeak('hi')
+              }
+              className="shrink-0 p-1 rounded hover:bg-black/5 text-[var(--ink-faint)] hover:text-[var(--ink)] transition-colors cursor-pointer border-0 bg-transparent"
+              title={speaking && playingTrack === 'hi' ? 'हिंदी ऑडियो रोकें' : 'हिंदी में सुनें'}
+              aria-label="हिंदी में सुनें"
+            >
+              {speaking && playingTrack === 'hi' ? (
+                <VolumeX className="w-4 h-4 text-[var(--stamp)] animate-pulse" />
+              ) : (
+                <Volume2 className="w-4 h-4" />
+              )}
+            </button>
           </div>
         )}
 
         <div className="actions">
-          <button type="button" onClick={handleSpeak}>
+          <button
+            type="button"
+            onClick={() => (speaking ? stopPlayback() : handleSpeak('all'))}
+            className={speaking ? '!border-[var(--stamp)] !text-[var(--stamp)]' : ''}
+            title={speaking ? 'Stop audio readout' : 'Listen to advisory (English & Hindi)'}
+          >
             {speaking ? (
               <>
-                <VolumeX className="w-3.5 h-3.5 text-[var(--stamp)]" />
-                <span>Stop</span>
+                <VolumeX className="w-3.5 h-3.5 text-[var(--stamp)] animate-pulse" />
+                <span>
+                  Stop {playingTrack === 'en' ? '(English)' : playingTrack === 'hi' ? '(हिंदी)' : ''}
+                </span>
               </>
             ) : (
               <>
@@ -190,3 +307,4 @@ export function SafetyCard({
     </section>
   );
 }
+

@@ -192,7 +192,7 @@ According to Hackathon Document 1 & 2 Pitch Regulations:
    - Click preset scenario **"Verification Refund Scam"** (`Your refund of ₹4,999 is pending. For verification, send ₹1 within 10 mins...`).
    - Click **"Check message"**.
    - **Show Result**: Live stamped verdict **HIGH THREAT (70)**, explaining the core Golden Rule: *You never have to pay money or enter your PIN to receive a refund.*
-   - Click **"Listen"** to demonstrate the Hindi voice readout.
+   - Click **"Listen"** to demonstrate the bilingual (English & Hindi) voice readout.
 
 2. **Step 2 (0:25 - 0:50) — Bonus Feature 1: Raw UPI Deep Link Parser**:
    - Click preset **"Raw UPI Intent Refund Trap"** (`upi://pay?pa=refund.verification@paytm&am=1.00...`).
