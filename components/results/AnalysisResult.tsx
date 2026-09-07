@@ -82,6 +82,21 @@ export function AnalysisResult({ result, onReset }: AnalysisResultProps) {
         <EvidenceList evidence={result.evidence} />
       )}
 
+      {/* Multimodal Screenshot OCR Bonus Notice if applicable */}
+      {result.imageAnalyzed && (
+        <div className="rounded-[6px] border border-[var(--line)] bg-white p-3.5 flex flex-wrap items-center justify-between gap-2 text-[13px]">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-[var(--navy)] shrink-0" />
+            <span className="font-medium text-[var(--ink)]">
+              Multimodal Screenshot Vision & OCR Examined
+            </span>
+          </div>
+          <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--navy)] bg-[rgba(30,58,95,0.06)] px-2.5 py-0.5 rounded-[4px] border border-[rgba(30,58,95,0.15)] font-semibold">
+            Bonus Feature [CC-GFG-02]
+          </span>
+        </div>
+      )}
+
       {/* Parsed UPI Intent Slip if applicable */}
       {result.upiDetails && (
         <UPIIntentCard intent={result.upiDetails} />

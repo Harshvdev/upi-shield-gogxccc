@@ -13,12 +13,12 @@ export function evaluateSafetyRules(analysis: RawAIAnalysis): {
   const applied: AppliedRule[] = [];
   const { triggers } = analysis;
 
-  // Rule 1: Payment Request + Coercion (threat) -> min score 55
+  // Rule 1: Payment Request + Coercion (threat) -> mandates HIGH threat (65)
   if (triggers.paymentRequest && triggers.coercion) {
     applied.push({
       id: 'RULE_PAYMENT_COERCION',
-      description: 'Payment request combined with coercive threats mandates minimum MEDIUM threat (55)',
-      minScore: 55,
+      description: 'Payment request combined with coercive threats (disconnection, account freeze) elevates to HIGH threat (65)',
+      minScore: 65,
     });
   }
 
@@ -28,6 +28,19 @@ export function evaluateSafetyRules(analysis: RawAIAnalysis): {
       id: 'RULE_PAYMENT_AUTHORITY',
       description: 'Payment request under institutional/authority guise elevates to HIGH threat (60)',
       minScore: 60,
+    });
+  }
+
+  // Rule 5: Verification Refund Scam / Nominal Fee Reversal Trap -> mandates HIGH threat (70)
+  // In UPI mechanics, receiving money NEVER requires sending money, scanning a QR, or paying a verification token.
+  if (
+    analysis.scamType === 'refund_verification' ||
+    (triggers.paymentRequest && triggers.urgency && analysis.evidence.some(e => /refund|reversal|verify|verification|token|₹1|₹10/i.test(e)))
+  ) {
+    applied.push({
+      id: 'RULE_REFUND_VERIFICATION_TRAP',
+      description: 'Verification refund trap: In UPI, receiving refunds never requires sending money or paying token fees (mandates HIGH threat: 70)',
+      minScore: 70,
     });
   }
 

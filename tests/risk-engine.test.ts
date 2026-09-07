@@ -32,9 +32,9 @@ describe('Deterministic Risk Engine', () => {
     const result = calculateDeterministicRisk(rawAnalysis, 'gemini');
 
     // Expected: (0.95 * 25) + (0.85 * 20) + (0.9 * 10) = 23.75 + 17 + 9 = 49.75 -> 50
-    // Rule: Payment + Coercion enforces minimum score 55
-    expect(result.riskScore).toBeGreaterThanOrEqual(55);
-    expect(result.riskLevel).toBe('MEDIUM');
+    // Rule 5: Verification Refund Trap enforces minimum HIGH threat (70)
+    expect(result.riskScore).toBeGreaterThanOrEqual(70);
+    expect(result.riskLevel).toBe('HIGH');
     expect(result.scamDetected).toBe(true);
     expect(result.appliedRules.length).toBeGreaterThan(0);
   });
