@@ -1,21 +1,31 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Source_Serif_4, Noto_Sans_Devanagari } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const sourceSerif4 = Source_Serif_4({
+  variable: "--font-source-serif",
   subsets: ["latin"],
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
+
+const notoSansDevanagari = Noto_Sans_Devanagari({
+  variable: "--font-noto-devanagari",
+  subsets: ["devanagari"],
+  display: "swap",
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
-  title: "UPI-Shield — Detect UPI Payment Scams Before You Pay",
+  title: "UPI-Shield — Before you pay, check the message.",
   description:
-    "AI-powered social-engineering scam detector for UPI payments. Analyzes SMS, WhatsApp, and Payment Notes to identify deceptive triggers, compute transparent threat scores, and generate bilingual English & Hindi safety cards.",
+    "Official UPI scam and psychological manipulation detector. Examines suspicious SMS, WhatsApp, payment notes, and QR codes before you authorize payments.",
   keywords: [
     "UPI scam detection",
     "UPI Shield",
@@ -23,6 +33,7 @@ export const metadata: Metadata = {
     "social engineering",
     "bilingual scam warning",
     "India payment security",
+    "Cyber helpline 1930",
   ],
 };
 
@@ -34,9 +45,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark antialiased`}
+      className={`${inter.variable} ${sourceSerif4.variable} ${notoSansDevanagari.variable} antialiased`}
     >
-      <body className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
+      <body className="min-h-screen bg-[var(--paper)] text-[var(--ink)] font-sans flex flex-col selection:bg-[#E4E0D6] selection:text-[#201F1C]">
         {children}
       </body>
     </html>

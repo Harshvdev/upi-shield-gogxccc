@@ -3,11 +3,9 @@
 import React from 'react';
 import { AnalysisResponseDTO } from '@/lib/ai/types';
 import { ThreatMeter } from './ThreatMeter';
-import { RiskBadge } from './RiskBadge';
+import { SafetyCard } from './SafetyCard';
 import { TriggerList } from './TriggerList';
 import { EvidenceList } from './EvidenceList';
-import { SafetyCard } from './SafetyCard';
-import { RotateCcw, Cpu, ShieldAlert, CheckCircle, Camera } from 'lucide-react';
 import { UPIIntentCard } from '../analyzer/UPIIntentCard';
 
 interface AnalysisResultProps {
@@ -16,103 +14,92 @@ interface AnalysisResultProps {
 }
 
 export function AnalysisResult({ result, onReset }: AnalysisResultProps) {
-  const isHigh = result.riskLevel === 'HIGH';
+  const getVerdictHeadline = () => {
+    if (result.riskLevel === 'HIGH') {
+      if (result.scamType === 'refund_verification') {
+        return 'This message is a refund verification trap';
+      }
+      if (result.scamType === 'account_threat') {
+        return 'This message is using fear to rush you';
+      }
+      if (result.scamType === 'fake_authority') {
+        return 'This message is impersonating an official authority';
+      }
+      return 'This message is built to rush you';
+    }
+    if (result.riskLevel === 'MEDIUM') {
+      return 'Suspicious characteristics detected';
+    }
+    return 'No deceptive patterns detected';
+  };
+
+  const getVerdictSubtext = () => {
+    if (result.riskLevel === 'HIGH') {
+      return 'Fake authority, a countdown, and a payment link — the classic shape of a UPI scam.';
+    }
+    if (result.riskLevel === 'MEDIUM') {
+      return 'Contains coercive or unverified elements. Verify the sender through official banking channels before paying.';
+    }
+    return 'The language in this message does not match known UPI coercion or social engineering patterns.';
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-      {/* Top Banner & Status Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl border border-slate-800 bg-slate-900/50 backdrop-blur-xl">
-        <RiskBadge
-          level={result.riskLevel}
-          scamType={result.scamType}
-          scamDetected={result.scamDetected}
-        />
+    <div id="result" className="space-y-8 animate-in fade-in duration-300">
+      {/* Verdict Row */}
+      <div className="flex items-start sm:items-center gap-6">
+        <ThreatMeter score={result.riskScore} level={result.riskLevel} />
 
-        <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-400">
-          {result.imageAnalyzed && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-950/60 border border-blue-500/40 font-mono text-[11px] text-blue-300">
-              <Camera className="w-3.5 h-3.5 text-blue-400" />
-              <span>Multimodal Screenshot OCR</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 font-mono text-[11px]">
-            <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-            <span>AI: {result.providerUsed === 'gemini' ? 'Gemini 3.8 Flash' : 'Groq Qwen 3.8 27B'}</span>
-          </div>
-
+        <div className="flex-1 min-w-0">
+          <h2 className="font-serif-doc text-[22px] sm:text-[24px] font-semibold text-[var(--ink)] leading-snug m-0 mb-1">
+            {getVerdictHeadline()}
+          </h2>
+          <p className="text-[14px] text-[var(--ink-soft)] leading-relaxed m-0">
+            {getVerdictSubtext()}
+          </p>
           <button
             type="button"
             onClick={onReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-200 transition-colors cursor-pointer"
+            className="text-[13px] text-[var(--ink-faint)] hover:text-[var(--navy)] underline underline-offset-2 transition-colors cursor-pointer bg-transparent border-0 p-0 mt-2 block"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-            <span>New Check</span>
+            Check a different message
           </button>
         </div>
       </div>
 
-      {/* Render Parsed UPI Intent Card if present */}
-      {result.upiDetails && (
-        <UPIIntentCard intent={result.upiDetails} />
-      )}
-
-
-      {/* Main Grid: Threat Meter & Key Metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Threat Meter Card */}
-        <div className="lg:col-span-4 rounded-2xl border border-slate-800 bg-slate-900/40 backdrop-blur-xl p-4 flex flex-col justify-center items-center">
-          <ThreatMeter score={result.riskScore} level={result.riskLevel} />
-          
-          <div className="w-full mt-2 pt-4 border-t border-slate-800/80 grid grid-cols-2 gap-2 text-center text-xs">
-            <div className="p-2 rounded-lg bg-slate-950/40 border border-slate-800/60">
-              <span className="text-[10px] uppercase tracking-wider text-slate-500 block">Threat Score</span>
-              <span className="font-mono font-bold text-base text-white">{result.riskScore} / 100</span>
-            </div>
-            <div className="p-2 rounded-lg bg-slate-950/40 border border-slate-800/60">
-              <span className="text-[10px] uppercase tracking-wider text-slate-500 block">Scam Detected</span>
-              <span className={`font-mono font-bold text-base ${result.scamDetected ? 'text-rose-400' : 'text-emerald-400'}`}>
-                {result.scamDetected ? 'YES' : 'NO'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Deceptive Triggers Matrix */}
-        <div className="lg:col-span-8 rounded-2xl border border-slate-800 bg-slate-900/40 backdrop-blur-xl p-5 sm:p-6">
-          <TriggerList triggers={result.triggerDetails} />
-        </div>
-      </div>
-
-      {/* Deterministic Safety Overrides / Rules Log */}
-      {result.appliedRules && result.appliedRules.length > 0 && (
-        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-950/15 text-amber-300 text-xs">
-          <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-[11px] mb-1.5">
-            <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-            <span>Deterministic Risk Policy Safeguards Applied:</span>
-          </div>
-          <ul className="space-y-1 list-disc list-inside text-amber-200/90 pl-1">
-            {result.appliedRules.map((rule, idx) => (
-              <li key={idx}>{rule}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Quoted Evidence */}
-      {result.evidence && result.evidence.length > 0 && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 backdrop-blur-xl p-5">
-          <EvidenceList evidence={result.evidence} />
-        </div>
-      )}
-
-      {/* Bilingual Safety Warning Card */}
+      {/* What to do now (Advisory) */}
       <SafetyCard
         englishWarning={result.englishWarning}
         hindiWarning={result.hindiWarning}
         recommendedAction={result.recommendedAction}
         riskLevel={result.riskLevel}
       />
+
+      {/* Why was this flagged? (Triggers) */}
+      <TriggerList triggers={result.triggerDetails} />
+
+      {/* Quoted from the message (Evidence) */}
+      {result.evidence && result.evidence.length > 0 && (
+        <EvidenceList evidence={result.evidence} />
+      )}
+
+      {/* Parsed UPI Intent Slip if applicable */}
+      {result.upiDetails && (
+        <UPIIntentCard intent={result.upiDetails} />
+      )}
+
+      {/* Deterministic Safeguards Log */}
+      {result.appliedRules && result.appliedRules.length > 0 && (
+        <div className="border-t border-[var(--line)] pt-4 text-[12px] text-[var(--ink-soft)]">
+          <span className="font-medium text-[var(--ink)] block mb-1">
+            Deterministic risk safeguards applied:
+          </span>
+          <ul className="list-disc list-inside space-y-0.5 pl-1">
+            {result.appliedRules.map((rule, idx) => (
+              <li key={idx}>{rule}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
