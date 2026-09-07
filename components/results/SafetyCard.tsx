@@ -27,37 +27,82 @@ export function SafetyCard({
       ? 'advisory advisory-warn'
       : 'advisory';
 
-  const handleSpeak = () => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
+  const stopPlayback = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeaking(false);
+  };
+
+  const handleSpeak = () => {
     if (speaking) {
+      stopPlayback();
+      return;
+    }
+
+    // Determine target spoken text prioritizing natural Hindi vernacular warning
+    const textToSpeak = hindiWarning ? hindiWarning : `${recommendedAction ? recommendedAction + '. ' : ''}${englishWarning}`;
+    const lang = hindiWarning ? 'hi' : 'en';
+
+    setSpeaking(true);
+
+    // 1. Primary: High-fidelity streaming TTS via /api/tts (works reliably on Linux, Android, iOS, Windows)
+    try {
+      const audioUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&lang=${lang}`;
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        setSpeaking(false);
+        audioRef.current = null;
+      };
+
+      audio.onerror = () => {
+        console.warn('[TTS] HTML5 audio streaming failed, attempting local SpeechSynthesis fallback...');
+        fallbackLocalSpeech();
+      };
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('[TTS] Autoplay or playback rejected:', err);
+          fallbackLocalSpeech();
+        });
+      }
+    } catch {
+      fallbackLocalSpeech();
+    }
+  };
+
+  const fallbackLocalSpeech = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
       setSpeaking(false);
       return;
     }
 
-    // Speak English warning then Hindi warning
-    const enText = `${recommendedAction ? recommendedAction + '. ' : ''}${englishWarning}`;
-    const enUtterance = new SpeechSynthesisUtterance(enText);
-    enUtterance.lang = 'en-US';
-    enUtterance.rate = 0.95;
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
 
-    enUtterance.onend = () => {
-      if (hindiWarning) {
-        const hiUtterance = new SpeechSynthesisUtterance(hindiWarning);
-        hiUtterance.lang = 'hi-IN';
-        hiUtterance.rate = 0.95;
-        hiUtterance.onend = () => setSpeaking(false);
-        hiUtterance.onerror = () => setSpeaking(false);
-        window.speechSynthesis.speak(hiUtterance);
-      } else {
-        setSpeaking(false);
-      }
-    };
+      const text = hindiWarning || englishWarning;
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = hindiWarning ? 'hi-IN' : 'en-US';
+      utterance.rate = 0.95;
 
-    enUtterance.onerror = () => setSpeaking(false);
-    setSpeaking(true);
-    window.speechSynthesis.speak(enUtterance);
+      utterance.onend = () => setSpeaking(false);
+      utterance.onerror = () => setSpeaking(false);
+
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      setSpeaking(false);
+    }
   };
 
   const handleShareWhatsApp = () => {
