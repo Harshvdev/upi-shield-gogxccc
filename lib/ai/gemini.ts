@@ -21,7 +21,7 @@ export class GeminiProvider {
     const userPrompt = buildAnalysisUserPrompt(input.text, input.source);
 
     // Multimodal payload if screenshot image is present
-    let contents: any = userPrompt;
+    let contents: Parameters<typeof this.client.models.generateContent>[0]['contents'] = userPrompt;
     if (input.image) {
       contents = [
         {
@@ -36,9 +36,21 @@ export class GeminiProvider {
       ];
     }
 
-    const response = await this.client.models.generateContent({
-      model: this.modelName,
-      contents,
+    const candidateModels = [
+      this.modelName,
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ].filter((m, i, arr) => arr.indexOf(m) === i);
+
+    let lastError: unknown = null;
+
+    for (const modelToTry of candidateModels) {
+      try {
+        const response = await this.client.models.generateContent({
+          model: modelToTry,
+          contents,
+
 
       config: {
         systemInstruction: SYSTEM_PROMPT,
@@ -110,12 +122,30 @@ export class GeminiProvider {
       },
     });
 
-    const rawText = response.text;
-    if (!rawText) {
-      throw new Error('Empty response received from Gemini');
+        const rawText = response.text;
+        if (!rawText) {
+          throw new Error('Empty response received from Gemini');
+        }
+
+        const parsedJson = JSON.parse(rawText);
+        return ScamAnalysisSchema.parse(parsedJson) as RawAIAnalysis;
+      } catch (err) {
+        lastError = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        // If authentication error, model fallback will not help; rethrow immediately
+        if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
+          throw err;
+        }
+        // If model not found (404), continue to next candidate model
+        if (msg.includes('not found') || msg.includes('404') || msg.includes('is not supported')) {
+          console.warn(`[Gemini Model Fallback] Model ${modelToTry} not found. Trying next candidate...`);
+          continue;
+        }
+        throw err;
+      }
     }
 
-    const parsedJson = JSON.parse(rawText);
-    return ScamAnalysisSchema.parse(parsedJson) as RawAIAnalysis;
+    throw lastError || new Error('All Gemini candidate models failed.');
   }
 }
+

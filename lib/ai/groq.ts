@@ -75,7 +75,7 @@ export class GroqProvider {
     return ScamAnalysisSchema.parse(sanitized) as RawAIAnalysis;
   }
 
-  private sanitizeOutput(data: any): any {
+  private sanitizeOutput(data: Record<string, unknown>): Record<string, unknown> {
     if (!data || typeof data !== 'object') return data;
 
     const triggerKeys = [
@@ -88,7 +88,7 @@ export class GroqProvider {
     ];
 
     // Sanitize triggers to strict booleans
-    const rawTriggers = data.triggers || {};
+    const rawTriggers = (data.triggers as Record<string, unknown>) || {};
     const sanitizedTriggers: Record<string, boolean> = {};
     for (const key of triggerKeys) {
       const val = rawTriggers[key];
@@ -110,8 +110,9 @@ export class GroqProvider {
         sanitizedConfidence[key] = sanitizedTriggers[key] ? rawConfidence : 0;
       }
     } else if (rawConfidence && typeof rawConfidence === 'object') {
+      const confObj = rawConfidence as Record<string, unknown>;
       for (const key of triggerKeys) {
-        const val = Number(rawConfidence[key]);
+        const val = Number(confObj[key]);
         sanitizedConfidence[key] = isNaN(val)
           ? sanitizedTriggers[key]
             ? 0.8
@@ -125,16 +126,18 @@ export class GroqProvider {
     }
 
     // Sanitize evidence
-    let evidence = data.evidence;
-    if (!Array.isArray(evidence)) {
-      evidence = typeof evidence === 'string' ? [evidence] : [];
-    }
+    const rawEvidence = data.evidence;
+    const evidenceList: string[] = Array.isArray(rawEvidence)
+      ? rawEvidence.map((e) => String(e))
+      : typeof rawEvidence === 'string'
+      ? [rawEvidence]
+      : [];
 
     return {
       scamDetected: Boolean(data.scamDetected),
       triggers: sanitizedTriggers,
       confidence: sanitizedConfidence,
-      evidence: evidence.slice(0, 6),
+      evidence: evidenceList.slice(0, 6),
       scamType: data.scamType || 'other',
       englishWarning: data.englishWarning || 'Exercise extreme caution before making payments.',
       hindiWarning: data.hindiWarning || 'भुगतान करने से पहले अत्यधिक सावधानी बरतें।',
