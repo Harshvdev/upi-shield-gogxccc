@@ -28,8 +28,10 @@ export function SafetyCard({
       : 'advisory';
 
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const cancelledRef = React.useRef(false);
 
   const stopPlayback = () => {
+    cancelledRef.current = true;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -41,67 +43,73 @@ export function SafetyCard({
     setSpeaking(false);
   };
 
+  const playAudioTrack = (text: string, lang: 'en' | 'hi', onFinish: () => void) => {
+    if (cancelledRef.current || !text) {
+      onFinish();
+      return;
+    }
+
+    try {
+      const audioUrl = `/api/tts?text=${encodeURIComponent(text)}&lang=${lang}`;
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        if (!cancelledRef.current) {
+          onFinish();
+        }
+      };
+
+      audio.onerror = () => {
+        if (!cancelledRef.current) {
+          onFinish();
+        }
+      };
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          if (!cancelledRef.current) {
+            onFinish();
+          }
+        });
+      }
+    } catch {
+      onFinish();
+    }
+  };
+
   const handleSpeak = () => {
     if (speaking) {
       stopPlayback();
       return;
     }
 
-    // Determine target spoken text prioritizing natural Hindi vernacular warning
-    const textToSpeak = hindiWarning ? hindiWarning : `${recommendedAction ? recommendedAction + '. ' : ''}${englishWarning}`;
-    const lang = hindiWarning ? 'hi' : 'en';
+    const enText = cleanEnglish.trim();
+    const hiText = (hindiWarning || '').trim();
 
+    if (!enText && !hiText) return;
+
+    cancelledRef.current = false;
     setSpeaking(true);
 
-    // 1. Primary: High-fidelity streaming TTS via /api/tts (works reliably on Linux, Android, iOS, Windows)
-    try {
-      const audioUrl = `/api/tts?text=${encodeURIComponent(textToSpeak)}&lang=${lang}`;
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
-
-      audio.onended = () => {
-        setSpeaking(false);
-        audioRef.current = null;
-      };
-
-      audio.onerror = () => {
-        console.warn('[TTS] HTML5 audio streaming failed, attempting local SpeechSynthesis fallback...');
-        fallbackLocalSpeech();
-      };
-
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn('[TTS] Autoplay or playback rejected:', err);
-          fallbackLocalSpeech();
-        });
-      }
-    } catch {
-      fallbackLocalSpeech();
-    }
-  };
-
-  const fallbackLocalSpeech = () => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
-      setSpeaking(false);
-      return;
-    }
-
-    try {
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.resume();
-
-      const text = hindiWarning || englishWarning;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = hindiWarning ? 'hi-IN' : 'en-US';
-      utterance.rate = 0.95;
-
-      utterance.onend = () => setSpeaking(false);
-      utterance.onerror = () => setSpeaking(false);
-
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      setSpeaking(false);
+    // Sequential bilingual readout: First English -> Then Hindi
+    if (enText) {
+      playAudioTrack(enText, 'en', () => {
+        if (cancelledRef.current) return;
+        if (hiText) {
+          // Play Hindi warning right after English completes
+          playAudioTrack(hiText, 'hi', () => {
+            stopPlayback();
+          });
+        } else {
+          stopPlayback();
+        }
+      });
+    } else if (hiText) {
+      playAudioTrack(hiText, 'hi', () => {
+        stopPlayback();
+      });
     }
   };
 
