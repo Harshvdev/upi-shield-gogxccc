@@ -45,9 +45,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${inter.variable} ${sourceSerif4.variable} ${notoSansDevanagari.variable} antialiased`}
     >
-      <body className="min-h-screen bg-[var(--paper)] text-[var(--ink)] font-sans flex flex-col selection:bg-[#E4E0D6] selection:text-[#201F1C]">
+      <body
+        suppressHydrationWarning
+        className="min-h-screen bg-[var(--paper)] text-[var(--ink)] font-sans flex flex-col selection:bg-[#E4E0D6] selection:text-[#201F1C]"
+      >
         {children}
       </body>
     </html>
